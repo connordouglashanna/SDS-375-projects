@@ -1,12 +1,15 @@
 ---
 title: "Project 1"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(ggridges)
 library(colorspace)
+library(dplyr)
 knitr::opts_chunk$set(echo = TRUE)
 
 olympics <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-27/olympics.csv')
@@ -47,38 +50,106 @@ We recommend you use box plots for the first part of the question and use a ridg
 - To trim the tails in your ridgeline plot, you can set 
 `rel_min_height = 0.01` inside `geom_density_ridges()`.
 
-**Introduction:** *Your introduction here.*
+**Introduction:** 
 
-**Approach:** *Your approach here.*
+*The dataset* `olympics_top` *is a historical dataset containing information on Olympic games competitors from 1896 through Summer 2016. Variables include information on age, weight, height, sex, where the games were held, what event the athlete competed in, if they received a medal, and so on. This information is encoded long, with each observation encoding information about a particular athlete's performance in a particular Olympic games. Data was scraped from www.sports-references.com by a Kaggle user, after original compilation by sports hobbyists.* 
+
+*To answer the question above, I'll need the information on sport, sex, height, and medalist status.*
+
+```{r}
+head(olympics_top)
+# Lets see what's in the data...
+table(olympics_top$games)
+# games is encoded as a character string, so we're going to need to generate a table to get an idea about the range of values.
+```
+
+**Approach:** 
+
+*I'll answer the first part of the question by using the* `geom_boxplot()` *feature of* `ggplot()` *to visualize height grouped by sport and sex. For the second part of the question, I'll use a* `geom_density_ridges()` *plot to visualize the distributions of height among medalists and non-medalists.*
 
 **Analysis:**
 
 ```{r}
-# Your R code here
+#part one, boxplot()
+
+ggplot(olympics_top, aes(reorder(sport, height, na.rm = TRUE), height, fill = sex)) +
+  geom_boxplot(position = position_dodge(width = .5), width = .5) + 
+  scale_x_discrete(name = "Sport") + 
+  scale_y_continuous(name = "Height") + 
+  labs(fill = "Sex") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
 ```
 
 ```{r}
-# Your R code here
+# part two, ridgeline()
+
+ggplot(olympics_top, aes(height, reorder(sport, height, na.rm = TRUE), fill = medalist)) +
+  geom_density_ridges(rel_min_height = 0.01) + 
+  scale_x_continuous(name = "Height") + 
+  scale_y_discrete(name = "Sport") + 
+  labs(fill = "Sex")
 ```
 
 
-**Discussion:** *Your discussion of results here.*
+**Discussion:** 
+
+*Gymnastics, figure skating, diving, and weightlifting all feature the shortest athletes. This is likely because the shorter athletes experience less joint strain, displace a smaller volume, and have better leverages respectively. Basketball, volleyball, rowing, and tennis have the tallest athletes. This is likely because athletes competing in these sports may benefit from longer limbs to exert greater leverage and extend their reach.*
+
+*Medalists in gymnastics, all skiing types, wrestling, sailing, and fencing were shorter than the average competitor. Medalists in boxing, archery, equestrianism,swimming, tennis, rowing, basketball, and biathlon appear to be taller on average.*
 
 ### **Part 2**
 
-**Question:** *Your question here.*
+**Question:** 
 
-**Introduction:** *Your introduction here.*
+*Did communist/former communist regimes regularly produce better weightlifters than others? Do weightlifting athletes compete at the upper limits of their weight classes?*
 
-**Approach:** *Your approach here.*
+**Introduction:** 
+
+*Soviet bloc and communist regimes were once famous for producing star strength athletes. I will use information on country, date, and medalist status to determine if Soviet/communist training styles were responsible for more medals/athlete than Western training regimes during the cold war. I will then use the information on weight and medalist status among weightlifters to test if weightlifters are more likely to compete at the upper limit for their weight class.*
+
+```{r }
+#dummy variable for communist regimes
+olympics_top$commies <- ifelse(olympics_top$team == "USSR/Russia", 1, ifelse(olympics_top$team == "Poland", 1, ifelse(olympics_top$team == "Hungary", 1, 0)))
+#dummy variable for medalist status
+olympics_top$medal_count <- ifelse(olympics_top$medalist == "medalist", 1, ifelse(olympics_top$medalist == "no medal", 0, NA))
+#this country data seemed really limited...
+#filtering to cold war
+olympics_top <- filter(olympics_top, year > 1948)
+olympics_top <- filter(olympics_top, year <= 1991)
+#filtering the data to only weightlifters
+olympics_liftr <- filter(olympics_top, sport == "Weightlifting")
+
+```
+
+**Approach:** 
+
+*For the relationship between communist regime status and weightlifting performance, I will use a* `geom_col()` *chart of total medalists sorted by communism status. For the weight distributions of weightlifters, I will use a* `geom_density()` *graph to see if spikes are obervable at the upper limit of weight classes.*
 
 **Analysis:**
 ```{r }
-# Your R code here
+#geom_col for part 1
+ggplot(olympics_liftr, aes(commies, medal_count, fill = team)) +
+  geom_col() + 
+  labs(fill = "Country") +
+  scale_x_continuous(name = "Regime Status",
+                     breaks = c(0, 1),
+                     limits = c(-0.5, 1.5),
+                     labels = c("Not Communist", "Communist")) + 
+  scale_y_continuous(name = "Total Medalists")
 ```
 
 ```{r }
-# Your R code here
+# geom_line and geom_jitter for part 2
+ggplot(olympics_liftr, aes(weight, color = event)) + 
+  geom_density() +
+  scale_x_continuous(name = "Weight (kg)") + 
+  labs(color = "Event", y = "Athlete Density") + 
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
 ```
 
-**Discussion:** *Your discussion of results here.*
+**Discussion:** 
+
+*For the bar graph of communist/non-communist medalists in weightlifting, it is abundantly clear that communist countries produced more medalists. Poland alone produced almost as many medalist weightlifters as the United States, with the Soviet Union taking home more than twice the number of medals as the Americans. This was likely due to the abundant supply of trainees, widespread doping, and rigorous training regimens employed by Communist regimes during this period.*
+
+*The density plot shows some pretty strong clustering at certain peaks, usually towards the upper limit beyond which the athletes will be unable to compete in the given weight class. This demonstrates the importance of power to weight ratio in olympic weightlifting, similar to the importance of weigh-ins to fighting sports.*
